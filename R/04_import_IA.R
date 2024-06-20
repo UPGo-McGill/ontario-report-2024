@@ -2,6 +2,7 @@
 
 source("R/01_startup.R")
 CSD <- qread("output/CSD.qs")
+CD <- qread("output/CD.qs", nthreads = availableCores())
 monthly <- qread("output/monthly.qs", nthreads = availableCores())
 
 
@@ -135,24 +136,33 @@ CSD_to_join <-
   inner_join(CSD, by = "CSDUID") |> 
   select(property_ID, CSDUID, city, CMAUID)
 
+CD_to_join <-
+  monthly_ia |>
+  slice(1, .by = property_ID) |>
+  strr_as_sf(3347) |>
+  select(property_ID) |>
+  mutate(CDUID = CD$CDUID[st_nearest_feature(geometry, CD)]) |>
+  st_drop_geometry()
+
+CD_to_join <-
+  CD_to_join |>
+  inner_join(CD, by = "CDUID") |>
+  select(property_ID, CDUID)
+
 monthly_ia <-
   monthly_ia |> 
   inner_join(CSD_to_join, by = "property_ID") |> 
-  relocate(city, CSDUID, CMAUID, .after = property_type)
+  inner_join(CD_to_join, by = "property_ID") |> 
+  relocate(city, CSDUID, CDUID, CMAUID, .after = property_type)
 
-rm(CSD_to_join)
+rm(CSD_to_join, CD_to_join)
 
 
 # Add city_type -----------------------------------------------------------
 
-monthly_ia <- 
+monthly_ia <-
   monthly_ia |> 
-  mutate(city_type = case_when(
-    city == "Toronto" ~ "City of Toronto",
-    city == "Ottawa" ~ "City of Ottawa",
-    CMAUID == "35535" ~ "Toronto region",
-    !is.na(CMAUID) ~ "Other urban",
-    .default = "Non-urban"), .after = city)
+  mutate_city_type()
 
 
 # Find housing listings ---------------------------------------------------
@@ -179,6 +189,15 @@ monthly_ia <-
   filter(housing) |> 
   select(-housing)
 
+
+# Remove bogus TO summer listings -----------------------------------------
+
+monthly_ia <- 
+  monthly_ia |> 
+  filter(!host_ID %in% c("506416002", "511797794", "514026349",
+                         "507045225", "506802674", "510716680", 
+                         "274825041") | month != yearmonth("2023-07"))
+  
 
 # Generate trend coefficients ---------------------------------------------
 
@@ -260,6 +279,24 @@ coefs_type <-
     rev = rev[coef_val[1]], 
     .by = city_type)
 
+coefs_table_type_TO <- 
+  coefs_table_type |> 
+  filter(city_type == "Toronto")
+
+# Adjust TO for extra data
+coefs_type <- 
+  coefs_type |> 
+  filter(city_type != "Toronto") |> 
+  add_row(
+    city_type = "Toronto",
+    scraped = coefs_table_type_TO$scraped[14],
+    active = coefs_table_type_TO$active[14],
+    FREH = coefs_table_type_TO$FREH[14],
+    FREH_3 = coefs_table_type_TO$FREH_3[14],
+    EH = mean(coefs_table_type_TO$EH[13:14]),
+    multi = mean(coefs_table_type_TO$multi[13:14]),
+    rev = coefs_table_type_TO$rev[4])
+
 
 # Calculate GH ------------------------------------------------------------
 
@@ -284,13 +321,9 @@ GH_ia <-
 
 GH_ia <- 
   GH_ia |> 
-  st_join(CSD) |> 
-  mutate(city_type = case_when(
-    city == "Toronto" ~ "City of Toronto",
-    city == "Ottawa" ~ "City of Ottawa",
-    CMAUID == "35535" ~ "Toronto region",
-    !is.na(CMAUID) ~ "Other urban",
-    .default = "Non-urban"), .after = city) |> 
+  st_join(CSD) |>
+  st_join(CD) |> 
+  mutate_city_type() |> 
   select(-pop_CSD, -dwellings_CSD) |> 
   relocate(geometry, .after = last_col())
 
