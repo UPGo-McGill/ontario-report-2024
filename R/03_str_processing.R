@@ -4,10 +4,13 @@ source("R/01_startup.R")
 qload("output/cmhc.qsm", nthreads = availableCores())
 province <- qread("output/province.qs", nthreads = availableCores())
 CSD <- qread("output/CSD.qs", nthreads = availableCores())
+CD <- qread("output/CD.qs", nthreads = availableCores())
 
-# Import raw monthly file -------------------------------------------------
+
+# Import raw monthly files ------------------------------------------------
 
 monthly <- read_csv("data/monthly_raw.csv")
+monthly_TO <- read_csv("data/monthly_raw_TO.csv")
 
 monthly <-
   monthly |>
@@ -29,6 +32,40 @@ monthly <-
          .keep = "none") |>
   mutate(month = yearmonth(month)) |>
   filter(!region %in% c("Idaho", "Vermont"))
+
+monthly_TO <-
+  monthly_TO |>
+  mutate(property_ID = `Property ID`,
+         month = `Reporting Month`,
+         host_ID = coalesce(as.character(`Airbnb Host ID`),
+                            `HomeAway Property Manager`),
+         listing_type = `Listing Type`,
+         property_type = `Property Type`,
+         country = Country,
+         region = State,
+         R = `Reservation Days`,
+         A = `Available Days`,
+         B = `Blocked Days`,
+         rev = `Revenue (USD)`,
+         latitude = `Latitude`,
+         longitude = `Longitude`,
+         scraped = `Scraped During Month`,
+         .keep = "none") |>
+  mutate(month = yearmonth(month)) |>
+  filter(!region %in% c("Idaho", "Vermont"))
+
+
+# Combine files -----------------------------------------------------------
+
+monthly <- 
+  monthly_TO |> 
+  anti_join(monthly, by = c("property_ID", "month")) |> 
+  bind_rows(monthly) |> 
+  arrange(property_ID, month) |> 
+  mutate(across(c(host_ID, listing_type, latitude, longitude), \(x) first(x)), 
+         .by = property_ID)
+
+rm(monthly_TO)
 
 
 # Fill in missing provinces -----------------------------------------------
@@ -77,12 +114,27 @@ CSD_to_join <-
   inner_join(CSD, by = "CSDUID") |>
   select(property_ID, CSDUID, city, CMAUID)
 
+CD_to_join <-
+  monthly |>
+  slice(1, .by = property_ID) |>
+  strr_as_sf(3347) |>
+  select(property_ID) |>
+  mutate(CDUID = CD$CDUID[st_nearest_feature(geometry, CD)]) |>
+  st_drop_geometry()
+
+CD_to_join <-
+  CD_to_join |>
+  inner_join(CD, by = "CDUID") |>
+  select(property_ID, CDUID)
+
 monthly <-
   monthly |>
   inner_join(CSD_to_join, by = "property_ID") |>
-  relocate(city, CSDUID, CMAUID, .after = property_type)
+  inner_join(CD_to_join, by = "property_ID") |> 
+  relocate(city, CSDUID, CDUID, CMAUID, .after = property_type)
 
 rm(CSD_to_join)
+rm(CD_to_join)
 
 
 # Trim file by first and last scraped date --------------------------------
@@ -93,24 +145,18 @@ monthly <-
          month >= min(month[scraped]),
          .by = property_ID)
 
-
+ 
 # Fill in missing months, and clean up ------------------------------------
 
 monthly <-
   monthly |>
   filter(!is.na(listing_type)) |>
   as_tsibble(key = property_ID, index = month) |>
-  fill_gaps(
-    host_ID = first(host_ID),
-    listing_type = first(listing_type),
-    property_type = first(property_type),
-    city = first(city),
-    CSDUID = first(CSDUID),
-    CMAUID = first(CMAUID),
-    latitude = first(latitude),
-    longitude = first(longitude),
-    scraped = FALSE) |>
-  as_tibble() |>
+  fill_gaps(scraped = FALSE) |>
+  as_tibble() |> 
+  mutate(across(c(host_ID, listing_type, property_type, city, CSDUID, CDUID, 
+                  CMAUID, latitude, longitude), \(x) coalesce(x, first(x))), 
+         .by = property_ID) |> 
   mutate(across(c(R, A, B, rev), \(x) coalesce(x, 0))) |>
   arrange(property_ID, month)
 
@@ -170,14 +216,9 @@ monthly <-
 
 # Add city_type -----------------------------------------------------------
 
-monthly <- 
+monthly <-
   monthly |> 
-  mutate(city_type = case_when(
-    city == "Toronto" ~ "City of Toronto",
-    city == "Ottawa" ~ "City of Ottawa",
-    CMAUID == "35535" ~ "Toronto region",
-    !is.na(CMAUID) ~ "Other urban",
-    .default = "Non-urban"), .after = city)
+  mutate_city_type()
 
 
 # Save intermediate output ------------------------------------------------
@@ -232,15 +273,20 @@ GH <-
   GH |> 
   st_set_crs(3347) |> 
   st_join(CSD) |> 
-  mutate(city_type = case_when(
-    city == "Toronto" ~ "City of Toronto",
-    city == "Ottawa" ~ "City of Ottawa",
-    CMAUID == "35535" ~ "Toronto region",
-    !is.na(CMAUID) ~ "Other urban",
-    .default = "Non-urban"), .after = city) |> 
+  st_join(CD) |> 
+  mutate_city_type() |> 
   select(-pop_CSD, -dwellings_CSD) |> 
   relocate(geometry, .after = last_col())
 
+
+# Force post-September-2022 listings to Toronto ---------------------------
+
+monthly <- 
+  monthly |> 
+  mutate(city = if_else(month >= yearmonth("2022-10"), "Toronto", city),
+         city_type = if_else(month >= yearmonth("2022-10"), "Toronto", 
+                             city_type))
+  
 
 # Save output -------------------------------------------------------------
 

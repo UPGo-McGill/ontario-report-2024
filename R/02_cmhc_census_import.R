@@ -24,8 +24,8 @@ CSD <-
   get_census("CA21", regions = list(PR = 35), level = "CSD",
              geo_format = "sf") |>
   st_transform(3347) |>
-  select(CSDUID = GeoUID, city = name, CMAUID = CMA_UID, pop_CSD = Population,
-         dwellings_CSD = Dwellings, geometry) |>
+  select(CSDUID = GeoUID, city = name, CMAUID = CMA_UID, CDUID = CD_UID, 
+         pop_CSD = Population, dwellings_CSD = Dwellings, geometry) |>
   as_tibble() |>
   st_as_sf()
 
@@ -113,6 +113,15 @@ CT <-
   select(CTUID = GeoUID, dwellings = Dwellings, rent, tenants, owners) |>
   st_set_agr("constant")
 
+CD <- 
+  get_census("CA21", regions = list(PR = 35), level = "CD", 
+             geo_format = "sf") |> 
+  as_tibble() |> 
+  select(CDUID = GeoUID, name, geometry) |> 
+  st_as_sf() |> 
+  st_transform(3347) |>
+  st_set_agr("constant")
+
 
 # Water -------------------------------------------------------------------
 
@@ -125,6 +134,7 @@ water <- read_sf("data/lhy_000c16a_e/lhy_000c16a_e.shp") |>
 qsave(DA, file = "output/DA.qs", nthreads = availableCores())
 qsave(DA_union, file = "output/DA_union.qs", nthreads = availableCores())
 qsave(CT, file = "output/CT.qs", nthreads = availableCores())
+qsave(CD, file = "output/CD.qs", nthreads = availableCores())
 qsave(CSD, file = "output/CSD.qs", nthreads = availableCores())
 qsave(CMA, file = "output/CMA.qs", nthreads = availableCores())
 qsave(province, file = "output/province.qs", nthreads = availableCores())
