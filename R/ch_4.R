@@ -1,4 +1,4 @@
-#### Chapter 4 #################################################################
+#### Chapter 4: The effect of principal-residence requirements on rents ########
 
 source("R/01_startup.R")
 

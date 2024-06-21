@@ -1,4 +1,5 @@
-#### Chapter 2 #################################################################
+#### Chapter 3: The impact of STRs on housing availability and affordability ###
+#### Part 1
 
 source("R/01_startup.R")
 monthly <- qread("output/monthly.qs", nthreads = availableCores())

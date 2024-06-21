@@ -1,4 +1,4 @@
-#### Chapter 1 #################################################################
+#### Chapter 2: Short-term rentals in Ontario: Market overview #################
 
 source("R/01_startup.R")
 monthly <- qread("output/monthly.qs", nthreads = availableCores())
