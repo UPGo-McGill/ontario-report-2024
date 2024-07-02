@@ -162,7 +162,7 @@ md$on$rent_log <- att_gt("rent_log", tname = "year", idname = "id",
 
 dd$on <- mutate(dd$on, id = str_remove(as.character(id), "^1111"))
 
-md$on$rent_log |> aggte("simple", alp = .00001)
+md$on$rent_log |> aggte("simple", alp = .000001)
 
 did_effects_on <- 
   tibble(treat = md$on$rent_log$group,
@@ -432,6 +432,13 @@ did_rent_non_treated_on_y3 <-
   select(id, year, rent_raw, rent_dif) |> 
   inner_join(tenant_count, by = c("id", "year"))
 
+# Number of treated neighbourhoods
+did_rent_dif |> 
+  inner_join(st_drop_geometry(select(cmhc_nbhd, id:name_CMA))) |> 
+  inner_join(select(reg, id, name_CSD)) |> 
+  filter(year == treat, province == "Ontario") |> 
+  nrow()
+
 # Number of untreated neighbourhoods
 (cmhc_nbhd |> 
     filter(province == "Ontario") |> 
@@ -488,8 +495,8 @@ tab_7 <-
     total_rent = sum(total_rent),
     total_rent_dif = sum(total_rent_dif), .by = name_CSD) |> 
   mutate(pct = total_rent_dif / (total_rent + total_rent_dif)) |> 
-  filter(name_CSD %in% c("Hamilton", "Burlington", "Niagara Falls", "Kitchener",
-                         "Waterloo")) |> 
+  filter(name_CSD %in% c("Hamilton", "Burlington", "Kingston", "Niagara Falls", 
+                         "Kitchener", "Waterloo")) |> 
   arrange(name_CSD) |> 
   select(name_CSD, mean_2023 = mean_rent_dif, total_2023 = total_rent_dif)
 
@@ -504,8 +511,8 @@ tab_7 <-
     total_rent = sum(total_rent),
     total_rent_dif = sum(total_rent_dif), .by = name_CSD) |> 
   mutate(pct = total_rent_dif / (total_rent + total_rent_dif)) |> 
-  filter(name_CSD %in% c("Hamilton", "Burlington", "Niagara Falls", "Kitchener",
-                         "Waterloo")) |> 
+  filter(name_CSD %in% c("Hamilton", "Burlington", "Kingston", "Niagara Falls", 
+                         "Kitchener", "Waterloo")) |> 
   arrange(name_CSD) |> 
   select(name_CSD, mean_2024 = mean_rent_dif, total_2024 = total_rent_dif) |> 
   inner_join(tab_7, by = "name_CSD")
@@ -521,8 +528,8 @@ tab_7 <-
     total_rent = sum(total_rent),
     total_rent_dif = sum(total_rent_dif), .by = name_CSD) |> 
   mutate(pct = total_rent_dif / (total_rent + total_rent_dif)) |> 
-  filter(name_CSD %in% c("Hamilton", "Burlington", "Niagara Falls", "Kitchener",
-                         "Waterloo")) |> 
+  filter(name_CSD %in% c("Hamilton", "Burlington", "Kingston", "Niagara Falls", 
+                         "Kitchener", "Waterloo")) |> 
   arrange(name_CSD) |> 
   select(name_CSD, mean_2025 = mean_rent_dif, total_2025 = total_rent_dif) |> 
   inner_join(tab_7, by = "name_CSD")

@@ -1,5 +1,5 @@
 #### Chapter 3: The impact of STRs on housing availability and affordability ###
-#### Part 1
+#### Part 2
 
 source("R/01_startup.R")
 
@@ -25,12 +25,11 @@ source("R/06_imputation.R")
 # Table 4: Regression model -----------------------------------------------
 
 mc$common.1
-
+dc$main |> filter(year >= 2018)
 
 # Figure 3.1: Canada-wide rent change -------------------------------------
 
 effect_yty <- bind_rows(
-  model_change(2017),
   model_change(2018),
   model_change(2019),
   model_change(2020),
@@ -46,7 +45,7 @@ fig_3_1 <-
   geom_segment(aes(yend = 0), colour = col_palette[1], lwd = 2) +
   geom_label(
     aes(label = scales::dollar(str_share, 0.1, scale = 1/1000000, suffix = "M")),
-    family = "Futura", nudge_y = c(-0.007, 0.007, 0.007, 0.007, 0.007, 0.007),
+    family = "Futura", nudge_y = c(0.007, 0.007, 0.007, 0.007, 0.007),
     colour = col_palette[1]) +
   scale_x_continuous(name = NULL) +
   scale_y_continuous(name = NULL, labels = scales::percent) +
@@ -82,7 +81,7 @@ rent_change_prov <-
   filter(province == "Ontario")
 
 rent_cause_all_vars_on <- 
-  map(2017:2022, \(x) {
+  map(2018:2022, \(x) {
   model_change(x, province,
                change_FREH = change_val("FREH", x, 1),
                change_non_FREH = change_val("non_FREH", x, 1),
@@ -91,7 +90,7 @@ rent_cause_all_vars_on <-
   filter(province == "Ontario")
 
 rent_cause_FREH <- 
-  map(2017:2022, \(x) {
+  map(2018:2022, \(x) {
     model_change(x, province,
                  change_FREH = change_val("FREH", x, 1),
                  change_non_FREH = change_val("non_FREH", x, 1),
@@ -102,14 +101,14 @@ rent_cause_FREH <-
   filter(province == "Ontario")
 
 rent_cause_all_vars <- 
-  map(2017:2022, \(x) {
+  map(2018:2022, \(x) {
     model_change(x, 
                  change_FREH = change_val("FREH", x, 1),
                  change_non_FREH = change_val("non_FREH", x, 1),
                  change_price = change_val("price", x, 1),
     )}) |> bind_rows()
 
-# Total amount of extra rent paid from 2017-2022
+# Total amount of extra rent paid from 2018-2022
 rent_cause_all_vars_on |> 
   pull(str_share) |> 
   sum() |> 
