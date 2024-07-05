@@ -180,17 +180,22 @@ model_change <- function(target_year, ..., change_FREH = 0,
     left_join(tenant_count, by = c("id", "year")) |> 
     left_join(tenant_count_lag, by = c("id", "year")) |> 
     mutate(total_before = rent_lag_raw * tenant_count_lag,
+           total_before_adj = rent_lag_raw * tenant_count,
            total_after = (rent_lag_raw + rent_change_raw) * tenant_count,
            total_after_c = (rent_lag_raw + rent_change_raw_c) * tenant_count) |> 
     group_by(...) |>
     summarize(
       j = "j",
       total_before = sum(total_before),
+      total_before_adj = sum(total_before_adj),
       total_after = sum(total_after),
       total_after_c = sum(total_after_c), 
-      total_change = total_after - total_before,
+      total_change = total_after - total_before_adj,
+      total_change_non_adj = total_after - total_before,
       str_share = total_after - total_after_c,
-      str_pct = str_share / total_change, .groups = "drop") |> 
+      str_pct = str_share / total_change,
+      str_pct_non_adj = str_share / total_change_non_adj, 
+      .groups = "drop") |> 
     mutate(year = target_year, .before = total_before) |> 
     select(-j)
   
